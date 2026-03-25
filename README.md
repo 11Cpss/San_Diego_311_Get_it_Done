@@ -151,6 +151,41 @@ pip install -r requirements.txt
 
 ---
 
+## Current Challenges and Next Steps
+
+### 1) Mixed-effects sensitivity to sample restriction
+**Challenge:**  
+The neighborhood-share effect is statistically significant in the full mixed-effects specification, but becomes less significant in 90/95/99 category-mass sensitivity subsets.
+
+**Why this happens:**  
+Restricting to high-volume categories reduces variation and can weaken statistical power.
+
+**My plan to address:**  
+- Keep the full-spec model as the primary inferential model.  
+- However, try different windows where I remove just neighborhood volume, and case volume separately
+- Report restricted-sample models as robustness checks (direction + confidence intervals, not only p-values).  
+- Prioritize coefficient stability across specifications over single-threshold significance.
+
+---
+
+### 2) Heavy right-tail response-time distribution
+**Challenge:**  
+`case_age_days` is strongly right-skewed with extreme long-delay cases, which increases prediction variance and makes tail cases hard to fit. Model can fit well against typical cases, but struggle to high-latency ones
+
+**Current mitigation:**  
+- Use `log1p(case_age_days)` for modeling.  
+- Compare against baseline and tuned models on the same time-based split.
+
+**Potential Approaches:**  
+- Add a range-based target track (bucketed delays) as a complementary model:
+  - example bins: `0–1`,`2–3` `4–7`, `8–21`, `22–90`, `>90` days 
+  - These bins could still provide useful information
+- Evaluate both:
+  1. regression model (continuous delay), and  
+  2. classification model (delay bucket),  
+  then compare utility for policy and operational decisions.
+
+- Or try modeling on just the top 10 most frequent cases first, and see if the model can generalize well
 ## Caveats
 
 - Results are based on closed-case records and can reflect operational process changes over time.
