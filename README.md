@@ -16,7 +16,8 @@ A summary notebook (`finding.ipynb`) captures consolidated results and writeups.
 
 ## Project Scope
 
-**Main question:** what drives slower response times (`case_age_days`) in the city request system?
+**Main question:** How fair and predictable is San Diego’s Get It Done system? Where are response-time inequalities concentrated, and what factors drive slower case resolution (`case_age_days`)?
+
 
 We approach this from three angles:
 1. **Citywide trend and feature analysis** (all years)
