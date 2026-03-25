@@ -1,0 +1,13 @@
+pandas
+numpy
+scikit-learn
+catboost
+statsmodels
+optuna
+matplotlib
+seaborn
+scipy
+pyarrow
+geopandas
+jupyter
+ipykernel

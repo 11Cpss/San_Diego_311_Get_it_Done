@@ -1,0 +1,14 @@
+{
+  "best_value": 1.039448178776324,
+  "best_params": {
+    "iterations": 2683,
+    "learning_rate": 0.012026068919134016,
+    "depth": 10,
+    "l2_leaf_reg": 26.01549806800122,
+    "min_data_in_leaf": 412,
+    "subsample": 0.7723299903439417,
+    "random_strength": 1.3487693201420443
+  },
+  "direction": "MINIMIZE",
+  "n_trials": 15
+}

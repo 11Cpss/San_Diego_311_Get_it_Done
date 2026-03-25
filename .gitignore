@@ -1,0 +1,48 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Python cache / bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Tool / test caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.cache/
+
+# Build / packaging
+build/
+dist/
+*.egg-info/
+
+# Logs / local runtime
+*.log
+
+# CatBoost outputs
+catboost_info/
+
+# Environment / secrets
+.env
+.env.*
+
+# OS/editor temp
+*.swp
+*.swo
+*~
+
+csv_files/*.csv
+
+catboost_info/
+csv_files/*.csv
