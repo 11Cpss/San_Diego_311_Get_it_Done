@@ -45,12 +45,12 @@ Core fields used across analyses include:
 ## Data Access
 
 This project supports two data-loading modes:
-- Preffered setup
+- Preffered setup, just import glob and it will download from drive directly
 
 ```bash
 source .venv/bin/activate
 pip install gdown
-python -c "import gdown; gdown.download('https://drive.google.com/uc?export=download&id=1F06NYKBF8loCTPEaPT_qIhcQy2T5iM6H','data.csv',quiet=False)"
+
 ```
 ### OR You can either download the files separately, or download the files already combined. The repo is already ran incase you don't want to download and just want to see result
 
@@ -66,9 +66,6 @@ python -c "import gdown; gdown.download('https://drive.google.com/uc?export=down
     - `https://drive.google.com/uc?export=download&id=1F06NYKBF8loCTPEaPT_qIhcQy2T5iM6H`
    - Actual Link if you want to download it yourself
     - `https://drive.google.com/file/d/1F06NYKBF8loCTPEaPT_qIhcQy2T5iM6H/view?usp=sharing`
-
-
-Large raw CSVs are intentionally excluded from GitHub to stay under repository file-size limits.
 
 ---
 
