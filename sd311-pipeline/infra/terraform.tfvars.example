@@ -1,0 +1,8 @@
+# Copy to terraform.tfvars and fill in your own account-specific values.
+# terraform.tfvars is ignored by Git.
+region               = "us-east-2"
+project              = "sd311-main"
+bucket_name          = "sd311-<your-name>-data"
+alert_email          = "you@example.com"
+enable_databricks    = false
+enable_github_deploy = false

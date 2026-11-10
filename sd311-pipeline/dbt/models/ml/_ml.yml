@@ -1,0 +1,19 @@
+version: 2
+models:
+  - name: ml_labels
+    description: "Closure-time bucket labels that are final at the as_of date."
+    columns:
+      - name: service_request_id
+        data_tests:
+          - unique
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('requests_clean')
+                field: service_request_id
+      - name: label_bucket
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['0-2', '3-7', '8-30', '31+']

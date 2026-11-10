@@ -1,229 +1,71 @@
-# San Diego Get It Done: Service Delay Analysis and Prediction
+# San Diego 311 Daily Prediction Pipeline
 
-End-to-end analysis of San Diego's 311-style **Get It Done** requests, focused on:
-- uncovering geographic and service-level response-time disparities,
-- testing structural hypotheses with mixed-effects models, and
-- predicting closure time with tree-based ML.
+I started this project by looking at how long San Diego's Get It Done requests take to close. The notebook work grew into a repeatable pipeline: download the city's latest files, check their structure, keep the originals for auditing, and use historical requests to predict closure-time ranges.
 
-This repo centers on three notebooks:
-- `01_citywide_data_preprocessing_eda.ipynb`
-- `02_council_district_eda.ipynb`
-- `03_catboost_modeling.ipynb`
+**Current status:** The AWS ingestion path is deployed in `us-east-2`. I ran the new Lambda against live city files and verified its S3 outputs and alert delivery. The daily schedule is enabled; its first scheduled run is still pending. Databricks processing and GitHub deployment automation are later steps. See [AWS deployment evidence](sd311-pipeline/STATUS_AWS.md).
 
-A summary notebook (`finding.ipynb`) captures consolidated results and writeups.
+## What runs in AWS
 
----
+```mermaid
+flowchart LR
+    Schedule[EventBridge Scheduler<br/>6:00 a.m. Pacific] --> Lambda[Lambda ingest]
+    ECR[ECR Docker image] --> Lambda
+    City[San Diego 311 CSVs] --> Lambda
+    Lambda --> Checks[Pandera validation]
+    Checks -->|valid| Raw[S3 original CSVs<br/>and audit manifests]
+    Checks -->|invalid| Quarantine[S3 quarantine]
+    Lambda --> Logs[CloudWatch logs and metrics]
+    Logs --> Alarms[3 CloudWatch alarms]
+    Alarms --> SNS[SNS email alerts]
+```
 
-## Project Scope
+Terraform defines the S3 bucket, ECR repository, Lambda, IAM roles, schedule, alarms, SNS topic, and budget. The Lambda image contains the Python code and dependencies; Terraform supplies its AWS settings and permissions. The original CSV and a manifest with its row count and SHA-256 hash are stored together. A file that fails the schema goes to `quarantine/` instead of continuing through the pipeline.
 
-**Main question:** How fair and predictable is San Diego’s Get It Done system? Where are response-time inequalities concentrated, and what factors drive slower case resolution (`case_age_days`)?
+The current AWS-only deployment does not upload Parquet or start a Databricks job. Those steps are implemented behind a configuration switch and remain to be verified on a Databricks workspace.
 
+## Live run and model results
 
-We approach this from three angles:
-1. **Citywide trend and feature analysis** (all years)
-2. **District and neighborhood equity analysis** (with service-composition context)
-3. **Predictive modeling** (time-split CatBoost + baseline comparisons)
+On **November 9, 2026**, I manually invoked the new `sd311-main-ingest` Lambda and checked the resulting objects in the new S3 bucket:
 
----
+| City file | Validated rows | S3 output |
+| --- | ---: | --- |
+| Open requests | 85,338 | Original CSV + `manifest.json` |
+| Closed requests, 2026 | 358,943 | Original CSV + `manifest.json` |
+| **Total** | **444,281** | **Two CSVs + two manifests** |
 
-## Data
+The invocation finished in about **13 seconds** and used **822 MB** of its 2,048 MB limit. Both files passed validation. I also verified the new SNS email subscription and a controlled CloudWatch alarm notification. The first **scheduled** invocation has not been observed yet. [Detailed checks](sd311-pipeline/STATUS_AWS.md).
 
-Raw data files live under `csv_files/` and include annual closed-case extracts:
-- `get_it_done_requests_closed_20*_datasd.csv`
+Separately, the closure-time CatBoost model beat a per-service baseline in all five quarters of a rolling backtest on **456,265 held-out requests**: pooled macro-F1 was **0.531 vs. 0.432**. Each fold used a 300,000-row training sample from its time window; the model was not trained on every record in the full dataset. [Methods and per-quarter results](sd311-pipeline/ml/reports/RESULTS.md).
 
-Core fields used across analyses include:
-- `service_request_id`
-- `date_requested`, `date_closed`
-- `case_age_days`
-- `service_name`, `service_name_detail`
-- `council_district`, `comm_plan_name`
-- `case_origin`
+## Repository guide
 
----
+| Path | What is there |
+| --- | --- |
+| [`sd311-pipeline/src/sd311/`](sd311-pipeline/src/sd311/) | Lambda ingestion, Pandera schema, settings, and monitoring code |
+| [`sd311-pipeline/infra/`](sd311-pipeline/infra/) | Terraform for the current AWS deployment |
+| [`sd311-pipeline/docker/`](sd311-pipeline/docker/) | Lambda container image |
+| [`sd311-pipeline/ml/`](sd311-pipeline/ml/) | Closure-time model, tests, and backtest results |
+| [`sd311-pipeline/lessons/`](sd311-pipeline/lessons/) | Step-by-step lessons and my explanation notes |
+| [`sd311-pipeline/README.md`](sd311-pipeline/README.md) | Full architecture and local setup |
+| [`archive/legacy-analysis/`](archive/legacy-analysis/) | Earlier EDA, district analysis, and regression notebooks |
 
-
-## Data Access
-
-This project supports two data-loading modes:
-- Preffered setup, just import glob and it will download from drive directly
+## Try the code locally
 
 ```bash
+cd sd311-pipeline
+python3.12 -m venv .venv
 source .venv/bin/activate
-pip install gdown
-
-```
-### OR You can either download the files separately, or download the files already combined. The repo is already ran incase you don't want to download and just want to see result
-
-1. **Local annual files (preferred if available):**
-   - Place annual CSVs under `csv_files/` with names like `get_it_done_requests_closed_20*_datasd.csv`.
-   - Notebooks automatically detect and load these files with `glob`.
-   - Actual Link if you want to download it yourself
-    - `https://drive.google.com/file/d/1CRVl-Sy2SCjlmARcOQFEIKo4NyMu2I8k/view?usp=drive_link`
-
-2. **Single-file fallback (Google Drive):**
-   - If annual local files are not found, notebooks attempt to load `data.csv` from project root.
-   - If `data.csv` is missing, notebooks attempt a direct download via `gdown` using:
-    - `https://drive.google.com/uc?export=download&id=1F06NYKBF8loCTPEaPT_qIhcQy2T5iM6H`
-   - Actual Link if you want to download it yourself
-    - `https://drive.google.com/file/d/1F06NYKBF8loCTPEaPT_qIhcQy2T5iM6H/view?usp=sharing`
-
----
-
-## Notebook Guide
-
-### 1) `01_citywide_data_preprocessing_eda.ipynb`
-Citywide cleaning + feature engineering + high-level trends.
-
-What it does:
-- Loads annual closed-request files and combines into a master table.
-- Cleans key categorical fields and invalid wait times.
-- Engineers temporal/request features.
-- Explores distributional behavior and correlation structure for response time.
-
-Use this notebook for:
-- first-pass data quality checks,
-- system-wide trend context,
-- feature intuition before modeling.
-
-### 2) `02_council_district_eda.ipynb`
-District/neighborhood disparity deep dive + mixed-effects analysis.
-
-What it does:
-- Quantifies median response differences by district and neighborhood.
-- Compares Districts 5 & 6 vs other districts over time.
-- Tests composition effects (infrastructure-heavy request mix).
-- Runs cross-classified mixed-effects models with random effects for neighborhood and request type.
-- Includes 90/95/99 sensitivity analyses.
-
-Documented findings include:
-- Districts 5 & 6 had substantially longer waits overall.
-- Districts 5 & 6 had ~**2.45x** higher infrastructure-request share in one comparison slice.
-- Pavement maintenance showed a large service-specific gap (documented in findings writeup).
-- Mixed-effects model (2024–2025 cohort) found a **negative** association between neighborhood request share and wait time (`beta = -1.032`, `p < 0.001` in full spec documented in `finding.ipynb`).
-
-### 3) `03_catboost_modeling.ipynb`
-Predictive modeling workflow.
-
-What it does:
-- Builds modeling dataset and engineered predictors.
-- Uses time-based train/validation/test splits.
-- Trains `CatBoostRegressor` with categorical handling.
-- Compares against a median baseline.
-- Runs Optuna hyperparameter tuning.
-- Experiments with stronger categorical and interaction features (e.g., cleaned service detail and service-neighborhood interactions).
-
-Use this notebook for:
-- reproducible predictive experiments,
-- feature ablation/tuning loops,
-- benchmark comparison and error analysis.
-
-### 4) `finding.ipynb`
-Narrative summary of key outcomes from analysis/modeling tracks.
-
----
-
-## Key Findings (Current)
-
-From the documented analyses and summary notes:
-- **Geographic disparity exists** in overall response times, especially in Districts 5 & 6 compared with other districts.
-- A large portion of disparity appears linked to **request composition** (higher concentration of slower infrastructure services).
-- There is a notable service-specific gap in **pavement maintenance** response time for Districts 5 & 6.
-- Mixed-effects modeling supports the hypothesis that lower-share neighborhoods tend to be slower, with a negative neighborhood-share coefficient in full model documentation.
-- Optimized CatBoost currently achieves **MAE 8.001 days**, **RMSE 17.127 days**, **R² 0.258** on the held-out test split (log-scale: RMSE 0.944, R² 0.485), outperforming a median baseline (MAE 9.71 days, RMSE 20.77, R² -0.091 in saved output cells).
-
----
-
-## Reproducibility
-
-### Environment
-Use the provided dependencies:
-
-```bash
-pip install -r requirements.txt
+pip install -e ".[dev]"
+python scripts/lessons.py check 4
+python scripts/lessons.py check 5
 ```
 
-### Run order (recommended)
-1. `01_citywide_data_preprocessing_eda.ipynb`
-2. `02_council_district_eda.ipynb`
-3. `03_catboost_modeling.ipynb`
-4. `finding.ipynb`
+The lesson checks run without AWS credentials. To deploy your own AWS copy, start with the [pipeline deployment guide](sd311-pipeline/README.md#deploy-manual-once-you-have-credentials) and use your own bucket names and alert email. Terraform state, credentials, local data exports, and `terraform.tfvars` are excluded from Git.
 
-### Notes
-- Use deterministic sorting before rolling-window feature engineering.
-- Keep time-based splits fixed for fair comparisons.
-- For strict reproducibility, set fixed seeds and deterministic model settings.
+## Next
 
----
+- Verify the first scheduled 6:00 a.m. Pacific run and then retire the older AWS schedule.
+- Connect Databricks for Parquet landing, bronze/silver/gold processing, and daily scoring.
+- Complete the CI/CD lesson before enabling automatic GitHub deployment.
 
-## Repository Layout
-
-```text
-.
-├── 01_citywide_data_preprocessing_eda.ipynb
-├── 02_council_district_eda.ipynb
-├── 03_catboost_modeling.ipynb
-├── finding.ipynb
-├── csv_files/
-├── models/
-├── district_trends_over_time.png
-├── requirements.txt
-└── README.md
-```
-
----
-
-## Methods Summary
-
-- **Statistical analysis:** distributional comparisons, service-composition analysis, district/neighborhood aggregation.
-- **Mixed-effects modeling:** cross-classified random effects (request type + neighborhood) with time controls.
-- **ML modeling:** CatBoost regression with time-aware validation, baseline benchmarking, and Optuna tuning.
-
----
-
-## Current Challenges and Next Steps
-
-### 1) Mixed-effects sensitivity to sample restriction
-**Challenge:**  
-The neighborhood-share effect is statistically significant in the full mixed-effects specification, but becomes less significant in 90/95/99 category-mass sensitivity subsets.
-
-**Why this happens:**  
-Restricting to high-volume categories reduces variation and can weaken statistical power.
-
-**My plan to address:**  
-- Keep the full-spec model as the primary inferential model.  
-- However, try different windows where I remove just neighborhood volume, and case volume separately
-- Report restricted-sample models as robustness checks (direction + confidence intervals, not only p-values).  
-- Prioritize coefficient stability across specifications over single-threshold significance.
-
----
-
-### 2) Heavy right-tail response-time distribution
-**Challenge:**  
-`case_age_days` is strongly right-skewed with extreme long-delay cases, which increases prediction variance and makes tail cases hard to fit. Model can fit well against typical cases, but struggle to high-latency ones
-
-**Current mitigation:**  
-- Use `log1p(case_age_days)` for modeling.  
-- Compare against baseline and tuned models on the same time-based split.
-
-**Potential Approaches:**  
-- Add a range-based target track (bucketed delays) as a complementary model:
-  - example bins: `0–1`,`2–3` `4–7`, `8–21`, `22–90`, `>90` days 
-  - These bins could still provide useful information
-- Evaluate both:
-  1. regression model (continuous delay), and  
-  2. classification model (delay bucket),  
-  then compare utility for policy and operational decisions.
-
-- Or try modeling on just the top 10 most frequent cases first, and see if the model can generalize well
-## Caveats
-
-- Results are based on closed-case records and can reflect operational process changes over time.
-- Some predictors may be operationally generated fields; validate feature availability-at-request-time when framing deployment claims.
-- Outlier handling and cohort windows can affect effect sizes; sensitivity analyses are included in notebook workflow.
-
----
-
-## Author
-
-**Jaden Wu**  
-UC San Diego, Data Science
+Built by **Jaden Wu**.

@@ -1,0 +1,10 @@
+# Lint settings for the model code (`ruff check ml`). Same rule set as the repo root
+# (pyproject.toml, which excludes ml/ from `ruff check .`), with 120-character lines.
+line-length = 120
+target-version = "py311"
+
+[lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[lint.isort]
+known-first-party = ["sd311_core", "sd311"]

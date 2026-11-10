@@ -1,0 +1,14 @@
+version: 2
+models:
+  - name: stg_open_snapshots
+    description: "Typed open snapshots (one row per request per snapshot_date)."
+    columns:
+      - name: service_request_id
+        data_tests: [not_null]
+      - name: snapshot_date
+        data_tests: [not_null]
+  - name: stg_closed_requests
+    description: "Typed closed records; may contain duplicates across files."
+    columns:
+      - name: service_request_id
+        data_tests: [not_null]

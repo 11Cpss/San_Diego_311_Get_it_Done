@@ -43,6 +43,16 @@ catboost_info/
 *~
 
 csv_files/*.csv
+archive/legacy-analysis/csv_files/*.csv
+archive/legacy-analysis/models/*.pkl
+
+# Large local exports and personal presentation assets
+/data.csv
+/get_it_done_closed_16-25.csv
+/models/rf_model.pkl
+/Pictures/
+/linkedin_banner/
+/thumbnail_*.png
+/tr_communities_by_council_district.pdf
 
 catboost_info/
-csv_files/*.csv

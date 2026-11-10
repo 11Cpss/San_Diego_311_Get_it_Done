@@ -1,0 +1,17 @@
+{
+  "lesson": 9,
+  "title": "CI/CD: the CI workflow",
+  "files": [
+    ".github/workflows/ci.yml"
+  ],
+  "pytest": [
+    "-m",
+    "lesson9"
+  ],
+  "minutes": {
+    "read": 20,
+    "build": 30,
+    "check_and_explain": 20,
+    "total": 70
+  }
+}

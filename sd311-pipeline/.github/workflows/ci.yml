@@ -1,0 +1,40 @@
+# LESSON 9 STUB: you write this workflow (lessons/09_ci_cd.md).
+#
+# Until you do, CI runs NO real checks. Keep this stub manual and skipped so
+# publishing the repository does not show a green tick that proves nothing.
+#
+# Contract (python scripts/lessons.py check 9 tests each line):
+#   TODO 1  Triggers: every pull request and every push.
+#   TODO 2  Permissions: read the repo contents, nothing more. CI never needs
+#           cloud credentials or secrets (deploy.yml is the only workflow that does).
+#   TODO 3  A Python job on ubuntu-latest:
+#             - Python 3.12 (the Lambda base image's version) and Java 17
+#               (pyspark's SQL-parser tests need it),
+#             - install the repo with its dev + ml extras in editable mode, the
+#               packages in databricks/requirements-dev.txt, and python-hcl2 +
+#               dbt-duckdb (so the lesson 5 and 7 checkers run here too),
+#             - lint with ruff, then run pytest (with MLFLOW_ALLOW_FILE_STORE=true).
+#   TODO 4  A Docker job: build docker/Dockerfile from the repo root. Build only:
+#           pushing images is deploy.yml's job.
+#   TODO 5  A Terraform job, in infra/: install Terraform 1.9.8, check formatting,
+#           init WITHOUT a backend (no AWS credentials in CI), validate.
+#   TODO 6  A dbt job, in dbt/: Python 3.12, install dbt-duckdb, then parse and
+#           build with the duckdb target and the profiles.yml in dbt/.
+# Rules: pin every action to a version tag (e.g. actions/checkout@v4), never
+# @main. Keep the jobs independent so they run in parallel.
+# Read deploy.yml first: it uses the same building blocks.
+name: ci
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  placeholder:
+    if: false # remove after implementing the real Lesson 9 checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Lesson 9 not done yet
+        run: echo "ci.yml is still the lesson 9 stub. No lint, tests, image, Terraform or dbt checks ran."

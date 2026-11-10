@@ -1,0 +1,17 @@
+{
+  "lesson": 5,
+  "title": "Terraform: least-privilege IAM + schedule",
+  "files": [
+    "infra/main.tf"
+  ],
+  "pytest": [
+    "-m",
+    "lesson5"
+  ],
+  "minutes": {
+    "read": 26,
+    "build": 45,
+    "check_and_explain": 30,
+    "total": 100
+  }
+}

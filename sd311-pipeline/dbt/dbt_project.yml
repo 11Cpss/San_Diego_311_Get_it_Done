@@ -1,0 +1,51 @@
+# dbt project for the SD 311 pipeline.
+# The same SQL runs on two engines:
+#   --target databricks : the real lakehouse (Unity Catalog, SQL warehouse)
+#   --target duckdb     : a local file, used for learning and CI
+name: sd311
+version: "1.0.0"
+config-version: 2
+profile: sd311
+
+model-paths: ["models"]
+macro-paths: ["macros"]
+test-paths: ["tests"]
+target-path: "target"
+clean-targets: ["target", "dbt_packages"]
+
+vars:
+  # Label "finality" date for ml_labels. null = use the latest open snapshot date.
+  # Override: dbt build --vars '{as_of: "2025-12-31"}'
+  as_of: null
+  # Local Parquet folder that stands in for the bronze tables on DuckDB.
+  # Default: a committed 1% sample (fixtures/bronze, ~9k rows) so CI works on a
+  # fresh checkout. For the full 2024-2025 data run scripts/make_local_data.py and
+  # pass --vars '{local_bronze_dir: local_data/bronze}'.
+  local_bronze_dir: "fixtures/bronze"
+
+# Look for dispatched macros (e.g. duckdb__safe_cast in macros/sd311_helpers.sql)
+# in this project first, then in dbt's own.
+dispatch:
+  - macro_namespace: dbt
+    search_order: ["sd311", "dbt"]
+
+models:
+  sd311:
+    # On Databricks each layer lands in its own Unity Catalog schema
+    # (see macros/generate_schema_name.sql). On DuckDB they are schemas in one file.
+    staging:
+      +schema: silver
+      +materialized: view
+    silver:
+      +schema: silver
+      +materialized: table
+    gold:
+      +schema: gold
+      +materialized: table
+    ml:
+      +schema: ml
+      +materialized: table
+
+data_tests:
+  sd311:
+    +store_failures: false

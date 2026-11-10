@@ -1,0 +1,47 @@
+version: 2
+
+sources:
+  # Bronze: raw strings exactly as the AWS Lambda landed them, loaded by
+  # databricks/tasks/load_bronze.py with COPY INTO.
+  - name: bronze
+    database: "{{ target.database | default('') }}"   # UC catalog on Databricks; DuckDB file name
+    schema: bronze
+    # DuckDB only: read the local Parquet stand-ins instead of a real table.
+    # dbt-duckdb replaces the table reference with this expression ({name} = table name).
+    # dbt-databricks ignores this meta key.
+    meta:
+      external_location: "read_parquet('{{ var('local_bronze_dir') }}/{name}.parquet')"
+    config:
+      # Source freshness: `dbt source freshness` warns if no file was ingested
+      # recently. The ingest job runs daily, so >36h old is suspicious.
+      loaded_at_field: _ingested_at
+      freshness:
+        warn_after: {count: 36, period: hour}
+        error_after: {count: 72, period: hour}
+    tables:
+      - name: open_snapshots
+        description: "One row per open request per daily snapshot (source='open')."
+        columns:
+          - name: service_request_id
+            data_tests: [not_null]
+          - name: snapshot_date
+            data_tests: [not_null]
+      - name: closed_requests
+        description: "Closed requests from closed_<YEAR> and backfill files."
+        columns:
+          - name: service_request_id
+            data_tests: [not_null]
+
+  # Silver snapshot tables built by databricks/tasks/snapshots.py (PySpark MERGE),
+  # not by dbt. Declared here so lineage/docs show them. They only exist on
+  # Databricks, so no model reads them in the DuckDB build.
+  - name: silver_snapshots
+    database: "{{ target.database | default('') }}"   # UC catalog on Databricks; DuckDB file name
+    schema: silver
+    tables:
+      - name: requests_first_seen
+        description: "Insert-only: each request's fields as first seen (leakage-safe features)."
+      - name: requests_current
+        description: "MERGE-upserted latest known state of each request."
+      - name: field_changes
+        description: "Append-only log of tracked field changes between snapshots."

@@ -1,0 +1,32 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+.venv/
+# Terraform: never commit state, plugins or real variable values
+infra/.terraform/
+infra/*.tfstate*
+infra/terraform.tfvars
+infra/.terraform.lock.hcl.bak
+# local data
+data/
+out.json
+# model data and large generated outputs (rebuild with ml/scripts/*)
+ml/data/
+ml/reports/backtest_predictions.parquet
+mlruns/
+mlartifacts/
+# wheel built by the Databricks bundle (artifacts: in databricks/databricks.yml)
+dist/
+build/
+# dbt local runs: full-data copies and DuckDB files.
+# dbt/fixtures/bronze/*.parquet (544 KB) is NOT ignored: CI builds on it.
+dbt/local_data/
+*.duckdb
+*.duckdb.wal
+# kept on purpose: ml/models/model.cbm (2 MB) and ml/models/metadata.json
+infra-main/.terraform/
+infra-main/terraform.tfvars
+infra-main/*.tfstate*
+infra-old-local/

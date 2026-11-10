@@ -1,0 +1,100 @@
+# Future Lesson 9 deploy template. Keep the job skipped until GitHub OIDC,
+# Databricks, region, resource names, and the prod environment are configured.
+#
+# Required in the `prod` environment:
+#   vars.AWS_DEPLOY_ROLE_ARN   output github_deploy_role_arn from Terraform
+#   vars.TF_STATE_BUCKET       S3 bucket holding terraform state
+#   vars.SD311_BUCKET_NAME     data bucket name (var.bucket_name)
+#   vars.ALERT_EMAIL           alarm email (var.alert_email)
+#   vars.DATABRICKS_WAREHOUSE_ID     SQL warehouse id for the dbt task (bundle var warehouse_id)
+#   vars.DATABRICKS_NOTIFICATION_EMAIL  job-failure email (bundle var notification_email)
+#   secrets.DATABRICKS_HOST    https://<workspace>.cloud.databricks.com
+#   secrets.DATABRICKS_TOKEN   PAT or service-principal token
+name: deploy
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write # lets the job request an OIDC token for AWS
+  contents: read
+
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false # never cancel a half-finished terraform apply
+
+env:
+  AWS_REGION: us-west-2
+  ECR_REPO: sd311-lambda
+  IMAGE_TAG: ${{ github.sha }}
+
+jobs:
+  deploy:
+    if: false # remove only after completing the deployment setup in Lesson 9
+    runs-on: ubuntu-latest
+    environment: prod
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC, no stored keys)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Log in to ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push image
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+        run: |
+          docker build -f docker/Dockerfile -t "$REGISTRY/$ECR_REPO:$IMAGE_TAG" .
+          docker push "$REGISTRY/$ECR_REPO:$IMAGE_TAG"
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.8"
+
+      - name: Terraform apply
+        working-directory: infra
+        env:
+          TF_VAR_bucket_name: ${{ vars.SD311_BUCKET_NAME }}
+          TF_VAR_alert_email: ${{ vars.ALERT_EMAIL }}
+          TF_VAR_github_repo: ${{ github.repository }}
+          TF_VAR_image_tag: ${{ env.IMAGE_TAG }}
+        run: |
+          terraform init -input=false \
+            -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" \
+            -backend-config="key=sd311/terraform.tfstate" \
+            -backend-config="region=${AWS_REGION}"
+          terraform apply -input=false -auto-approve
+
+      - name: Point both Lambdas at the new image
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+        run: |
+          # terraform apply already sets image_uri; this makes the code update
+          # explicit and waits until each function is ready.
+          for fn in sd311-ingest sd311-monitor; do
+            aws lambda update-function-code --function-name "$fn" \
+              --image-uri "$REGISTRY/$ECR_REPO:$IMAGE_TAG" > /dev/null
+            aws lambda wait function-updated --function-name "$fn"
+            echo "updated $fn"
+          done
+
+      - name: Install Databricks CLI
+        if: ${{ hashFiles('databricks/databricks.yml') != '' }}
+        uses: databricks/setup-cli@main
+
+      - name: Databricks bundle deploy
+        if: ${{ hashFiles('databricks/databricks.yml') != '' }}
+        working-directory: databricks
+        env:
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+          # The bundle CLI reads BUNDLE_VAR_<name> as the value of variable <name>.
+          BUNDLE_VAR_warehouse_id: ${{ vars.DATABRICKS_WAREHOUSE_ID }}
+          BUNDLE_VAR_notification_email: ${{ vars.DATABRICKS_NOTIFICATION_EMAIL }}
+        run: databricks bundle deploy -t prod

@@ -1,0 +1,173 @@
+# Databricks Asset Bundle for the SD 311 lakehouse.
+#
+#   databricks bundle validate -t dev
+#   databricks bundle deploy   -t dev  --var="warehouse_id=<id>"
+#   databricks bundle run      -t dev sd311_daily
+#
+# Everything runs on SERVERLESS compute: no cluster definitions. Python tasks pick
+# their libraries from a job-level `environments` entry; the dbt task runs its SQL
+# on a SQL warehouse (warehouse_id variable).
+#
+# NOTE: written against the docs, validated only as YAML locally (no workspace
+# credentials in the build sandbox). Run `databricks bundle validate` before use.
+
+bundle:
+  name: sd311
+
+# Ship ../dbt with the bundle. Because this path is outside the bundle root,
+# the CLI widens the sync root to the repo root, keeping databricks/ and dbt/ side by side.
+sync:
+  paths:
+    - .
+    - ../dbt
+  exclude:
+    - ../dist
+    - ../dbt/target
+    - ../dbt/local_data
+    - ../dbt/logs
+
+# Build the repo's own wheel (packages sd311 + sd311_core, see ../pyproject.toml)
+# on every deploy. The CLI uploads ../dist/*.whl and rewrites the local path in
+# the `environments` dependencies below to the uploaded copy.
+artifacts:
+  sd311_wheel:
+    type: whl
+    path: ..
+    build: python3 -m pip wheel --no-deps -w dist .
+
+variables:
+  catalog:
+    description: Unity Catalog catalog that holds bronze/silver/gold/ml.
+    default: sd311
+  warehouse_id:
+    description: SQL warehouse ID used by the dbt task (Compute > SQL Warehouses > Connection details).
+  notification_email:
+    description: Address that gets an email when a job fails (pass with --var, keep it out of git).
+
+targets:
+  dev:
+    # development mode: resources are prefixed "[dev <user>]" and schedules are paused,
+    # so a dev deploy never runs on its own.
+    mode: development
+    default: true
+
+  prod:
+    mode: production
+    workspace:
+      # one fixed location so prod deploys from any laptop/CI agree
+      root_path: /Workspace/Shared/.bundle/${bundle.name}/${bundle.target}
+
+resources:
+  jobs:
+    sd311_daily:
+      name: sd311_daily
+      description: Bronze load -> silver snapshots -> dbt (silver/gold/ml) -> features -> score -> summary.
+      schedule:
+        # 06:00 Pacific, after the AWS ingest Lambda has landed the day's files.
+        quartz_cron_expression: "0 0 6 * * ?"
+        timezone_id: America/Los_Angeles
+        pause_status: UNPAUSED
+      max_concurrent_runs: 1
+      email_notifications:
+        on_failure:
+          - ${var.notification_email}
+
+      environments:
+        # Plain PySpark tasks: nothing extra needed.
+        - environment_key: base
+          spec:
+            environment_version: "2"
+        # dbt runs inside a serverless Python environment and sends SQL to the warehouse.
+        - environment_key: dbt
+          spec:
+            environment_version: "2"
+            dependencies:
+              - dbt-databricks>=1.8,<2.0
+        # ML tasks import sd311_core from the repo wheel built by `artifacts` above.
+        # Versions match pyproject.toml's [ml] extra (catboost pinned: model files
+        # are read by the same version that wrote them).
+        - environment_key: ml
+          spec:
+            environment_version: "2"
+            dependencies:
+              - ../dist/*.whl
+              - catboost==1.2.10
+              - pandas>=2.2
+              - scikit-learn>=1.4
+              - mlflow>=3.1
+              - matplotlib>=3.8
+
+      tasks:
+        - task_key: load_bronze
+          environment_key: base
+          spark_python_task:
+            python_file: ./tasks/load_bronze.py
+            parameters: ["--catalog", "${var.catalog}"]
+
+        - task_key: snapshots
+          depends_on: [{task_key: load_bronze}]
+          environment_key: base
+          spark_python_task:
+            python_file: ./tasks/snapshots.py
+            parameters: ["--catalog", "${var.catalog}"]
+
+        - task_key: dbt_build
+          depends_on: [{task_key: snapshots}]
+          environment_key: dbt
+          dbt_task:
+            project_directory: ../dbt
+            # No profiles_directory: Databricks builds the connection from the
+            # warehouse/catalog/schema below and injects DBT_ACCESS_TOKEN.
+            warehouse_id: ${var.warehouse_id}
+            catalog: ${var.catalog}
+            schema: gold
+            commands:
+              - "dbt source freshness"
+              - "dbt build"
+
+        - task_key: features
+          depends_on: [{task_key: dbt_build}]
+          environment_key: ml
+          spark_python_task:
+            python_file: ./tasks/features.py
+            parameters: ["--catalog", "${var.catalog}"]
+
+        - task_key: score
+          depends_on: [{task_key: features}]
+          environment_key: ml
+          spark_python_task:
+            python_file: ./tasks/score.py
+            parameters: ["--catalog", "${var.catalog}"]
+
+        - task_key: evaluate_and_summarize
+          depends_on: [{task_key: score}]
+          environment_key: ml   # needs sd311_core + mlflow for live metrics and drift
+          spark_python_task:
+            python_file: ./tasks/evaluate_and_summarize.py
+            # {{job.run_id}} is a Databricks dynamic value reference filled in at run time.
+            parameters: ["--catalog", "${var.catalog}", "--job-run-id", "{{job.run_id}}"]
+
+    sd311_train:
+      name: sd311_train
+      description: Manual retrain (no schedule). Run with `databricks bundle run sd311_train`.
+      max_concurrent_runs: 1
+      email_notifications:
+        on_failure:
+          - ${var.notification_email}
+      environments:
+        - environment_key: ml
+          spec:
+            environment_version: "2"
+            dependencies:
+              - ../dist/*.whl
+              - catboost==1.2.10
+              - pandas>=2.2
+              - scikit-learn>=1.4
+              - mlflow>=3.1
+              - matplotlib>=3.8
+      tasks:
+        - task_key: train
+          environment_key: ml
+          spark_python_task:
+            python_file: ./tasks/train.py
+            parameters: ["--catalog", "${var.catalog}"]

@@ -1,0 +1,8 @@
+{
+  "lesson": 3,
+  "title": "Baselines, metrics and backtesting",
+  "files": ["ml/sd311_core/backtest.py", "ml/sd311_core/baseline.py"],
+  "pytest": ["-m", "lesson3"],
+  "extra_checks": [{"cmd": ["{python}", "ml/scripts/verify_real_data.py", "fold", "2025-07-01"]}],
+  "minutes": {"read": 36, "build": 45, "check_and_explain": 30, "total": 110}
+}

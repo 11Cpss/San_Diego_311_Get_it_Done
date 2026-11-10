@@ -1,0 +1,8 @@
+{
+  "lesson": 1,
+  "title": "Why the old numbers were wrong",
+  "files": ["ml/analysis/old_vs_new.py"],
+  "pytest": ["-m", "lesson1"],
+  "extra_checks": [{"cmd": ["{python}", "ml/analysis/old_vs_new.py", "--verify"]}],
+  "minutes": {"read": 24, "build": 30, "check_and_explain": 20, "total": 75}
+}

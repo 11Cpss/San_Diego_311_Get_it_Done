@@ -1,0 +1,8 @@
+# Local test dependencies for databricks/ (not needed on Databricks itself).
+# pyspark needs Java 17+; on Debian/Ubuntu system Python, install into a venv
+# (the system setuptools cannot build the pyspark sdist).
+pytest
+duckdb>=1.4      # MERGE INTO support
+pyyaml
+pyspark==4.0.1   # only for the SQL parse checks; tests skip if missing
+databricks-bundles>=1.20  # typed job models used to check databricks.yml offline

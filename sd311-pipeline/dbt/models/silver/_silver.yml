@@ -1,0 +1,24 @@
+version: 2
+models:
+  - name: requests_clean
+    description: "One cleaned row per request: latest state, closed preferred, filters applied."
+    columns:
+      - name: service_request_id
+        data_tests: [unique, not_null]
+      - name: status
+        description: "Referred rows are removed during cleaning, so it must not appear here."
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['New', 'In Process', 'Closed']
+      - name: service_name
+        data_tests: [not_null]
+      - name: comm_plan_name
+        data_tests: [not_null]
+      - name: case_origin
+        data_tests: [not_null]
+      - name: council_district
+        data_tests: [not_null]
+      - name: desc_len
+        description: "Length of public_description (0 if missing). Model feature; the text itself stays in bronze."
+        data_tests: [not_null]

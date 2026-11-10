@@ -1,0 +1,7 @@
+# Runtime deps for the Lambda image ONLY (no test tools).
+# boto3 is already in the AWS Lambda Python base image.
+requests==2.32.3
+pandas==2.2.3
+pyarrow==18.1.0
+pandera==0.26.1
+tzdata==2025.2   # zoneinfo data for America/Los_Angeles (Lambda image has no system tz db guarantee)

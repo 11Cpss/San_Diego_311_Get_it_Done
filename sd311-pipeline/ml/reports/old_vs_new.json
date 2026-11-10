@@ -1,0 +1,27 @@
+{
+  "v1_n_train": 764981,
+  "v1_n_test": 157431,
+  "v1_global_median": 4.0,
+  "v1_mae_global_median": 9.709364737567569,
+  "v1_mae_service_median": 25.930267863381417,
+  "h2_2025_all_requests": 180360,
+  "h2_2025_missing_from_v1_test": 22940,
+  "h2_2025_missing_share": 0.1271900643158128,
+  "h2_2025_missing_still_open": 22940,
+  "q3_2025_bucket_share_v1_truncated": {
+    "0-2": 0.5091,
+    "3-7": 0.1831,
+    "8-30": 0.1636,
+    "31+": 0.1441
+  },
+  "q3_2025_bucket_share_proper": {
+    "0-2": 0.4673,
+    "3-7": 0.1681,
+    "8-30": 0.1502,
+    "31+": 0.2145
+  },
+  "q3_2025_n_v1": 87101,
+  "q3_2025_n_proper": 94896,
+  "jan_gap_analog_2024_share": 0.0023396700769030797,
+  "jan_gap_analog_2024_n": 711
+}

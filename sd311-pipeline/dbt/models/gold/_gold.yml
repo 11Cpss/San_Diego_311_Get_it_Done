@@ -1,0 +1,52 @@
+version: 2
+models:
+  - name: dim_service
+    columns:
+      - name: service_name
+        data_tests: [unique, not_null]
+  - name: dim_location
+    columns:
+      - name: location_id
+        data_tests: [unique, not_null]
+  - name: dim_date
+    columns:
+      - name: date_day
+        data_tests: [unique, not_null]
+  - name: fct_requests
+    description: "One row per request with keys to dim_service, dim_location, dim_date."
+    columns:
+      - name: service_request_id
+        data_tests: [unique, not_null]
+      - name: service_name
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_service')
+                field: service_name
+      - name: location_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_location')
+                field: location_id
+      - name: date_requested_day
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_day
+      - name: closure_bucket
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['0-2', '3-7', '8-30', '31+']
+  - name: fct_daily_backlog
+    columns:
+      - name: open_count
+        data_tests: [not_null]
+  - name: kpi_monthly
+    columns:
+      - name: volume
+        data_tests: [not_null]

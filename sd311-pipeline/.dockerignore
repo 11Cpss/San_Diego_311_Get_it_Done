@@ -1,0 +1,12 @@
+.git
+**/__pycache__
+**/*.pyc
+.pytest_cache
+.ruff_cache
+tests
+infra/.terraform
+databricks
+dbt
+data
+*.csv
+*.csv.gz

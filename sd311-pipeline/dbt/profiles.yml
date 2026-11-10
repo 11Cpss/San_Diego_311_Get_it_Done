@@ -1,0 +1,33 @@
+# profiles.yml lives in the project so both CI and the Databricks dbt_task can use it
+# (run dbt with --profiles-dir . or DBT_PROFILES_DIR=.).
+sd311:
+  target: duckdb
+  outputs:
+    # Local: a single DuckDB file. No credentials needed.
+    duckdb:
+      type: duckdb
+      path: "{{ env_var('SD311_DUCKDB_PATH', 'sd311.duckdb') }}"
+      threads: 2
+
+    # Databricks: everything comes from environment variables, never committed.
+    # In a Databricks dbt_task the job injects DBT_* vars for the warehouse itself;
+    # these env vars are for running dbt from your laptop against Databricks.
+    databricks:
+      type: databricks
+      catalog: "{{ env_var('DBT_DATABRICKS_CATALOG', 'sd311') }}"
+      schema: "{{ env_var('DBT_DATABRICKS_SCHEMA', 'gold') }}"
+      host: "{{ env_var('DBT_DATABRICKS_HOST', 'missing-host.cloud.databricks.com') }}"
+      http_path: "{{ env_var('DBT_DATABRICKS_HTTP_PATH', '/sql/1.0/warehouses/missing') }}"
+      # DBT_ACCESS_TOKEN is what a Databricks dbt_task injects; DBT_DATABRICKS_TOKEN is for laptops.
+      token: "{{ env_var('DBT_ACCESS_TOKEN', env_var('DBT_DATABRICKS_TOKEN', 'missing-token')) }}"
+      threads: 4
+
+    # Optional: open-source Spark in-process (pip install "dbt-spark[session]" pyspark).
+    # Closest local stand-in for the Databricks SQL dialect. Used by
+    # scripts/run_spark_local.sh; tables are plain Parquet (no Delta jars needed).
+    spark_local:
+      type: spark
+      method: session
+      host: NA
+      schema: gold
+      threads: 1
